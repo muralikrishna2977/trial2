@@ -35,7 +35,12 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "https://muralikrishna2977.github.io", // GitHub Pages deployment
+
+    origin: [
+  "https://muralikrishna2977.github.io",
+  "https://Challa-Rajesh.github.io"
+],
+
     methods: ["GET", "POST", "PUT", "DELETE"],
   },
 });
