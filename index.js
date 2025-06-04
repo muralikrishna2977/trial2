@@ -313,21 +313,14 @@ app.post("/gethistoryinitial", async (req, res) => {
   }
 });
 
-// Modified "editsendername" Route
 app.post("/editsendername", async (req, res) => {
-  const { editnameofSender, senderid } = req.body;
+  const { name, senderid } = req.body;
   try {
     // Update the user's name using _id conversion
     await db.collection("users").updateOne(
       { _id: new ObjectId(senderid) },
-      { $set: { name: editnameofSender } }
+      { $set: { name: name } }
     );
-
-    // Update the name in friends list
-    // await db.collection("friends").updateMany(
-      // { "friends.friend_id": senderid },
-      // { $set: { "friends.$.friend_name": editnameofSender } }
-    // );
 
     res.status(201).json({ message: "Name Edited" });
   } catch (err) {
