@@ -324,10 +324,10 @@ app.post("/editsendername", async (req, res) => {
     );
 
     // Update the name in friends list
-    await db.collection("friends").updateMany(
-      { "friends.friend_id": senderid },
-      { $set: { "friends.$.friend_name": editnameofSender } }
-    );
+    // await db.collection("friends").updateMany(
+      // { "friends.friend_id": senderid },
+      // { $set: { "friends.$.friend_name": editnameofSender } }
+    // );
 
     res.status(201).json({ message: "Name Edited" });
   } catch (err) {
