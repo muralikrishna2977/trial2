@@ -35,14 +35,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-
-    origin: [
-  "https://muralikrishna2977.github.io",
-  "https://Challa-Rajesh.github.io"
-],
-
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  },
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+},
 });
 
 const port = process.env.PORT || 3000;
