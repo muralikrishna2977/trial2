@@ -33,12 +33,19 @@ dotenv.config(); // Load environment variables
 
 const app = express();
 const server = http.createServer(app);
+
+
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:5174', 'http://localhost:5173'], // your Vue frontend
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://muralikrishna2977.github.io"
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
   },
 });
+
 
 const port = process.env.PORT || 3000;
 const mongoUri = process.env.MONGO_URI;
