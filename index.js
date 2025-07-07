@@ -1,21 +1,3 @@
-// import express from "express";
-// const app = express();
-
-// const PORT = process.env.PORT || 3000;
-
-// app.get("/", (req, res) => {
-//   res.send("Hello, Railway!");
-// });
-
-// app.get("/ping", (req, res) => {
-//   res.send("pong");
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`Server is running on port ${PORT}`);
-// });
-
-
 import dotenv from "dotenv";
 import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
@@ -145,11 +127,11 @@ app.post("/signin", async (req, res) => {
 
   try {
     const user = await db.collection("users").findOne({ email });
-    const userId=user._id.toString();
 
     if (!user) {
       return res.status(400).json({ message: "No such user" });
     }
+    const userId=user._id.toString();
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
