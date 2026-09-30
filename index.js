@@ -15,7 +15,7 @@ import createChatRoutes from "./routes/chatRoutes.js";
 import createGroupRoutes from "./routes/groupRoutes.js";
 import createProfileRoutes from "./routes/profileRoutes.js";
 import createUploadRoutes from "./routes/uploadRoutes.js";
-import { hashMap, onlinestatus, initSocketHandlers } from "./sockets/socketHandler.js";
+import { hashMap, initSocketHandlers } from "./sockets/socketHandler.js";
 
 const app = express();
 const server = http.createServer(app);
