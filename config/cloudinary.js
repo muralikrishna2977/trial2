@@ -7,7 +7,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = multer.memoryStorage();
-export const upload = multer({ storage });
+export const MAX_UPLOAD_MB = 25;
+
+// Files are held in memory before streaming to Cloudinary, so cap their size.
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 1 },
+});
 
 export { cloudinary };

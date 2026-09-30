@@ -1,118 +1,96 @@
-export const hashMap = new Map();
-export const onlinestatus = new Map();
+import { ObjectId } from "mongodb";
 
+export const hashMap = new Map(); // userId -> socketId
+export const onlinestatus = new Map(); // socketId -> userId
+
+// Every socket is authenticated by socketAuth (see middleware/auth.js), which sets
+// socket.data.userId. Handlers use that id and never trust user ids sent by the client.
 export function initSocketHandlers(io, db) {
-  io.on("connection", (socket) => {
-    socket.on("register_user", async (userId) => {
-      hashMap.set(userId, socket.id);
-      onlinestatus.set(socket.id, userId);
-
-      try {
-        const result = await db.collection("friends").findOne(
-          { userid: userId },
-          { projection: { friends: 1, _id: 0 } }
-        );
-
-        const friendsList = result?.friends || [];
-        if (hashMap.get(userId)) {
-          friendsList.forEach((friend) => {
-            const socketId = hashMap.get(friend.friend_id);
-            if (socketId) {
-              io.to(socketId).emit("selfstatus", { userId, status: "online" });
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Database error:", err);
-      }
-    });
-
-    socket.on("send-group-message", ({ clickedGroupid: roomId, senderid, sendmessage: message, time: timestamp, sendername, fileUrl, fileType, filename, replyTo }) => {
-      socket.to(roomId).emit("receive-group-message", {
-        senderid,
-        sendername,
-        message,
-        timestamp,
-        roomId,
-        fileUrl,
-        fileType,
-        fileName: filename,
-        replyTo,
+  async function notifyFriends(userId, event, status) {
+    try {
+      const result = await db.collection("friends").findOne(
+        { userid: userId },
+        { projection: { friends: 1, _id: 0 } }
+      );
+      (result?.friends || []).forEach((friend) => {
+        const socketId = hashMap.get(friend.friend_id);
+        if (socketId) io.to(socketId).emit(event, { userId, status });
       });
+    } catch (err) {
+      console.error("Database error:", err);
+    }
+  }
 
-      const doc = {
-        groupid: roomId,
-        sender_id: senderid,
-        message,
-        sent_time: String(timestamp),
-        fileUrl,
-        fileType,
-        fileName: filename,
-      };
-      if (replyTo) doc.replyTo = replyTo;
-      db.collection("groupmessages").insertOne(doc);
-    });
+  io.on("connection", (socket) => {
+    const userId = socket.data.userId;
 
-    socket.on("onlineofflinestatus", async (userId) => {
+    // Registered on connect from the verified token.
+    hashMap.set(userId, socket.id);
+    onlinestatus.set(socket.id, userId);
+    notifyFriends(userId, "selfstatus", "online");
+
+    socket.on("send-group-message", async (payload = {}) => {
+      const { clickedGroupid: roomId, sendmessage: message, time: timestamp, fileUrl, fileType, filename, replyTo } = payload;
+      // Sockets only join a group room via /createroomforgroupandfetchhistory, which checks membership.
+      if (typeof roomId !== "string" || !socket.rooms.has(roomId)) return;
+
       try {
-        const result = await db.collection("friends").findOne(
-          { userid: userId },
-          { projection: { friends: 1, _id: 0 } }
+        const sender = await db.collection("users").findOne(
+          { _id: new ObjectId(userId) },
+          { projection: { name: 1 } }
         );
 
-        const friendsList = result?.friends || [];
-        const status = hashMap.get(userId) ? "online" : "offline";
-        friendsList.forEach((friend) => {
-          const socketId = hashMap.get(friend.friend_id);
-          if (socketId) {
-            io.to(socketId).emit("onofstatus", { userId, status });
-          }
+        socket.to(roomId).emit("receive-group-message", {
+          senderid: userId,
+          sendername: sender?.name ?? "Member",
+          message,
+          timestamp,
+          roomId,
+          fileUrl,
+          fileType,
+          fileName: filename,
+          replyTo,
         });
+
+        const doc = {
+          groupid: roomId,
+          sender_id: userId,
+          message,
+          sent_time: String(timestamp),
+          fileUrl,
+          fileType,
+          fileName: filename,
+        };
+        if (replyTo) doc.replyTo = replyTo;
+        await db.collection("groupmessages").insertOne(doc);
       } catch (err) {
         console.error("Database error:", err);
       }
+    });
+
+    // Tells the given user's friends whether that user is currently online.
+    socket.on("onlineofflinestatus", (targetUserId) => {
+      if (typeof targetUserId !== "string") return;
+      notifyFriends(targetUserId, "onofstatus", hashMap.get(targetUserId) ? "online" : "offline");
     });
 
     // Typing indicator — relay to the target user
-    socket.on("typing", ({ toUserId }) => {
-      const fromUserId = onlinestatus.get(socket.id);
+    socket.on("typing", ({ toUserId } = {}) => {
       const socketId = hashMap.get(toUserId);
-      if (socketId && fromUserId) {
-        io.to(socketId).emit("user-typing", { fromUserId });
-      }
+      if (socketId) io.to(socketId).emit("user-typing", { fromUserId: userId });
     });
 
-    socket.on("stop-typing", ({ toUserId }) => {
-      const fromUserId = onlinestatus.get(socket.id);
+    socket.on("stop-typing", ({ toUserId } = {}) => {
       const socketId = hashMap.get(toUserId);
-      if (socketId && fromUserId) {
-        io.to(socketId).emit("user-stop-typing", { fromUserId });
-      }
+      if (socketId) io.to(socketId).emit("user-stop-typing", { fromUserId: userId });
     });
 
-    socket.on("disconnect", async () => {
-      const userId = onlinestatus.get(socket.id);
-      if (!userId) return;
-
+    socket.on("disconnect", () => {
       onlinestatus.delete(socket.id);
+      // Only clear the mapping if it still points at this socket (not a newer connection).
+      if (hashMap.get(userId) !== socket.id) return;
       hashMap.delete(userId);
-
-      try {
-        const result = await db.collection("friends").findOne(
-          { userid: userId },
-          { projection: { friends: 1, _id: 0 } }
-        );
-
-        const friendsList = result?.friends || [];
-        friendsList.forEach((friend) => {
-          const socketId = hashMap.get(friend.friend_id);
-          if (socketId) {
-            io.to(socketId).emit("onofstatus", { userId, status: "offline" });
-          }
-        });
-      } catch (err) {
-        console.error("Database error:", err);
-      }
+      notifyFriends(userId, "onofstatus", "offline");
     });
   });
 }
